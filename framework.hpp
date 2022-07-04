@@ -58,6 +58,19 @@ namespace disappearing_0
     };
 
 
+    template<typename sdigit_t, typename hand_t, typename player_t>
+    class game
+    {
+    protected:
+        status sta;
+        setting set;
+
+    public:
+        game(const setting<sdigit_t, hand_t, player_t>);
+    };
+
+
+
     #define __SDIGIT_TEMPLATE template<typename sdigit_t>
 
     __SDIGIT_TEMPLATE inline digit<sdigit_t>::digit() { }
