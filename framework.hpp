@@ -1,177 +1,95 @@
 #ifndef _D0_FRAMEWORK_HPP
 #define _D0_FRAMEWORK_HPP
 
-#include <cstdint>
+#include <concepts>
+#include <ranges>
+#include <memory>
 
 
 namespace disappearing_0
 {
-    template<typename sdigit_t>
-    class digit
+    using std::signed_integral, std::unsigned_integral, std::unique_ptr;
+
+
+    // Operations of single digits
+
+    template<typename R>
+    concept parameters = std::ranges::range<R> && std::signed_integral<std::ranges::range_value_t<R>>;
+
+    template<signed_integral digit>
+    using simple_operation = digit & (*)(digit &, const digit, const digit radix);
+    template<signed_integral digit, signed_integral parameter_t>
+    using parametric_operation = digit & (*)(digit &, const digit, const parameter_t, const digit radix);
+    template<signed_integral digit, parameters parameters_t>
+    using possible_parameters = parameters_t (*)(const digit, const digit);
+
+    template<signed_integral digit, parameters parameters_t>
+    class detailed_parametric_operation
     {
-    protected:
-        sdigit_t value;
+        using parameter_t = std::ranges::range_value_t<parameters_t>;
 
     public:
-        inline digit();
-        inline digit(const sdigit_t);
-        inline operator sdigit_t();
+        parametric_operation<digit, parameter_t> operation;
+        possible_parameters<digit, parameter_t> parameters;
 
-        inline digit & plus(const digit other, const digit radix);
-        inline digit & minus(const digit other, const digit radix);
-        inline digit & multiply(const digit other, const digit radix);
-        inline digit & divide(const digit other, const digit borrow, const digit radix);
-
-        inline const digit operator++(int);
-        inline digit & operator++();
-        inline const digit operator--(int);
-        inline digit & operator--();
-
-        inline bool disappeared() const;
-        friend digit borrow(const digit divide, const digit by, digit buffer[], const digit<sdigit_t> radix);
+        inline detailed_parametric_operation(
+            const parametric_operation<digit, parameter_t> _operation,
+            const possible_parameters<digit, parameter_t> _parameters
+        ): operation(_operation), parameters(_parameters) { }
     };
 
 
-    template<typename sdigit_t, typename hand_t, typename player_t>
+    // Situation of the game
+
+    template<signed_integral digit, unsigned_integral player_t>
+    struct situation
+    {
+        unique_ptr<digit[]> digits;
+        player_t current_player;
+    };
+
+
+    // Information about single players' specific turns
+
+    template<unsigned_integral player_t, unsigned_integral hand_t>
+    struct turn
+    {
+        hand_t outstretched_hand;
+        player_t touched_player;
+        hand_t touched_hand;
+    };
+
+
+    template<signed_integral digit, parameters parameters_t, unsigned_integral player_t, unsigned_integral hand_t>
     class setting
     {
+    private:
+        using parameter_t = std::ranges::range_value_t<parameters_t>;
+
     public:
-        sdigit_t radix;
-        sdigit_t start;
+        digit radix;
         hand_t hands;
         player_t players;
+        unique_ptr<simple_operation<digit>[]> simple_operations;
+        unique_ptr<detailed_parametric_operation<digit, parameter_t>[]> parametric_operations;
 
-        setting(const sdigit_t, const sdigit_t, const hand_t, const player_t);
+        inline setting(
+            const digit _radix,
+            const hand_t _hands,
+            const player_t _players
+        ): radix(_radix), hands(_hands), players(_players)
+        { }  // TODO: init operations
     };
 
 
-    template<typename sdigit_t, typename hand_t, typename player_t>
-    class status
+    template<signed_integral digit, parameters parameters_t, unsigned_integral player_t, unsigned_integral hand_t>
+    struct game
     {
-    protected:
-        sdigit_t * digits;
-
-    public:
-        const setting<sdigit_t, hand_t, player_t> & s;
-        status(const setting<sdigit_t, hand_t, player_t> &);
-        inline ~status();
+        const setting<digit, parameters_t, hand_t, player_t> game_setting;
+        situation<digit, player_t> current;
+        game(const setting<digit, parameters_t, hand_t, player_t> _setting): game_setting(_setting) { }
     };
-
-
-    template<typename sdigit_t, typename hand_t, typename player_t>
-    class game
-    {
-    protected:
-        status sta;
-        setting set;
-
-    public:
-        game(const setting<sdigit_t, hand_t, player_t>);
-    };
-
-
-
-    #define __SDIGIT_TEMPLATE template<typename sdigit_t>
-
-    __SDIGIT_TEMPLATE inline digit<sdigit_t>::digit() { }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t>::digit(const sdigit_t _val)
-    { value = _val; }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t>::operator sdigit_t()
-    { return value; }
-
-    __SDIGIT_TEMPLATE inline digit<sdigit_t> & digit<sdigit_t>::plus(const digit<sdigit_t> other, const digit<sdigit_t> radix)
-    {
-        value += other.value;
-        if (value >= radix)
-            value -= radix;
-        return *this;
-    }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t> & digit<sdigit_t>::minus(const digit<sdigit_t> other, const digit<sdigit_t> radix)
-    {
-        value -= other.value;
-        if (value < 0)
-            value += radix;
-        return *this;
-    }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t> & digit<sdigit_t>::multiply(const digit<sdigit_t> other, const digit<sdigit_t> radix)
-    {
-        value *= other.value;
-        value %= radix;
-        return *this;
-    }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t> & digit<sdigit_t>::divide(const digit<sdigit_t> other, const digit<sdigit_t> borrow, const digit<sdigit_t> radix)
-    {
-        value += borrow.value * radix;
-        value /= other.value;
-        return *this;
-    }
-
-    __SDIGIT_TEMPLATE inline const digit<sdigit_t> digit<sdigit_t>::operator++(int)
-    {
-        const auto temp = *this;
-        value++;
-        return temp;
-    }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t> & digit<sdigit_t>::operator++()
-    {
-        value++;
-        return *this;
-    }
-    __SDIGIT_TEMPLATE inline const digit<sdigit_t> digit<sdigit_t>::operator--(int)
-    {
-        const auto temp = *this;
-        value--;
-        return temp;
-    }
-    __SDIGIT_TEMPLATE inline digit<sdigit_t> & digit<sdigit_t>::operator--()
-    {
-        value--;
-        return *this;
-    }
-
-    __SDIGIT_TEMPLATE inline bool digit<sdigit_t>::disappeared() const
-    { return value == 0; }
-    __SDIGIT_TEMPLATE digit<sdigit_t> borrow(const digit<sdigit_t> divide, const digit<sdigit_t> by, digit<sdigit_t> buffer[], const digit<sdigit_t> radix)
-    {
-        auto ptr = buffer;
-        digit<sdigit_t> count = 0;
-        for (digit<sdigit_t> i = 0; i < radix - 1; i++)
-            if (divide.value % by.value == 0) {
-                *ptr = i;
-                ptr++;
-                count++;
-            }
-        return count;
-    }
-
-    #undef __SDIGIT_TEMPLATE
-
-
-    #define __STATUS_TEMPLATE template<typename sdigit_t, typename hand_t, typename player_t>
-
-    __STATUS_TEMPLATE
-    status<sdigit_t, hand_t, player_t>::status(const setting<sdigit_t, hand_t, player_t> & _s)
-    {
-        s = _s;
-        digits = new sdigit_t[s.hands * s.players];
-    }
-
-    __STATUS_TEMPLATE
-    inline status<sdigit_t, hand_t, player_t>::~status()
-    { delete [] digits; }
-
-
-    __STATUS_TEMPLATE
-    setting<sdigit_t, hand_t, player_t>::setting(const sdigit_t _radix, const sdigit_t _start, const hand_t _hands, const player_t _players)
-    {
-        radix = _radix;
-        start = _start;
-        hands = _hands;
-        players = _players;
-    }
-
-    #undef __STATUS_TEMPLATE
-}
+}  // namespace disappearing_0
 
 
 #endif
